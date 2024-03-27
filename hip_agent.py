@@ -1,6 +1,56 @@
-import openai
+from openai import OpenAI
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import Weaviate
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+import weaviate
+from weaviate.embedded import EmbeddedOptions
+
 
 class HIPAgent:
+    def __init__(self):
+        """
+        Initializes parameters. 
+        """
+        self.textbook_path = "./textbook.txt"
+        self.textbook = None
+        self.embeddings = None
+        self.retriever = None
+        self.client = OpenAI()
+
+    def load_data_and_embeddings(self):
+        """
+        Loads textbook.txt and generates embeddings for efficient retrieval.
+        """
+
+        # Load textbook.txt.
+        loader = TextLoader(self.textbook_path, encoding = 'UTF-8')
+        self.textbook = loader.load()
+
+        # Chunk textbook.txt.
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50, separators=[" ", ",", "\n"])
+        chunks = text_splitter.split_text(str(self.textbook))
+        chunks = text_splitter.create_documents(chunks)
+
+        # Generate and save embeddings.
+        client = weaviate.Client(
+            embedded_options = EmbeddedOptions()
+        )
+        vectorstore = Weaviate.from_documents(
+            client = client,    
+            documents = chunks,
+            embedding = OpenAIEmbeddings(),
+            by_text = False
+        )
+        self.embeddings = vectorstore
+
+        # Define retriever.
+        self.retriever = vectorstore.as_retriever()
+
     def get_response(self, question, answer_choices):
         """
         Calls the OpenAI 3.5 API to generate a response to the question.
@@ -17,12 +67,38 @@ class HIPAgent:
             does not match any answer choice.
         """
 
-        # Create the prompt.
+        # Load embeddings if not populated.
+        if not self.embeddings:
+            self.load_data_and_embeddings()
+        if not self.retriever:
+            raise ValueError("Retriever component not initialized.")
+
+        # Prepare prompt template.
+        template = """Use the following pieces of retrieved context to answer the question 
+        Question: {question} 
+        Context: {context} 
+        Answer:
+        """
+        prompt = ChatPromptTemplate.from_template(template)
+
+        # Define RAG chain
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+        rag_chain = (
+            {"context": self.retriever, "question": RunnablePassthrough()}
+            | prompt 
+            | llm
+            | StrOutputParser() 
+        )
+
+        # Invoke RAG chain
+        answer = rag_chain.invoke(question)
+
+        # Correlate RAG answer to answer choices.
         answer_str = "\n".join(answer_choices)
-        prompt = f"{question} \n\n{answer_str}"
+        prompt = f"Which of the following answer choices is closest to the true answer: {answer} \n\n{answer_str}"
 
         # Call the OpenAI 3.5 API.
-        response = openai.ChatCompletion.create(
+        response = self.client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": prompt},
