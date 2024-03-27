@@ -1,13 +1,12 @@
-from openai import OpenAI
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Weaviate
-from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
 import weaviate
+from langchain.prompts import ChatPromptTemplate
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain_community.vectorstores import Weaviate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from openai import OpenAI
 from weaviate.embedded import EmbeddedOptions
 
 
@@ -74,7 +73,7 @@ class HIPAgent:
             raise ValueError("Retriever component not initialized.")
 
         # Prepare prompt template.
-        template = """Use the following pieces of retrieved context to answer the question 
+        template = """Use the following pieces of retrieved context to answer the question.
         Question: {question} 
         Context: {context} 
         Answer:
@@ -95,7 +94,7 @@ class HIPAgent:
 
         # Correlate RAG answer to answer choices.
         answer_str = "\n".join(answer_choices)
-        prompt = f"Which of the following answer choices is closest to the true answer: {answer} \n\n{answer_str}"
+        prompt = f"Generated response: {answer} \n\n Which of the following multiple choice answers is the closest to the generated response? Respond with the answer string verbatim. \n\n {answer_str}"
 
         # Call the OpenAI 3.5 API.
         response = self.client.chat.completions.create(
@@ -104,11 +103,11 @@ class HIPAgent:
                 {"role": "user", "content": prompt},
             ],
         )
-        response_text = response.choices[0].message.content
+        response_text = response.choices[0].message.content.lower()
 
         # Match the response to one of the answer choices.
         for i, answer_choice in enumerate(answer_choices):
-            if response_text == answer_choice:
+            if answer_choice.lower() in response_text:
                 return i
 
         # If the response does not match any answer choice, return -1.
