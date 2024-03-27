@@ -15,3 +15,7 @@ v02: More complex matching
 - This fails because OpenAI added extra text to the response.
 - Also failing due to capitalization
 
+v03: Add error handling and logging
+**Testbench: 16/20**
+- Copied hip_agent.py into GPT and typed "Can you add logging and error handling"
+ 

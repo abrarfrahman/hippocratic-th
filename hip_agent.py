@@ -1,3 +1,4 @@
+import logging
 import weaviate
 from langchain.prompts import ChatPromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -21,34 +22,50 @@ class HIPAgent:
         self.retriever = None
         self.client = OpenAI()
 
+        # Logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler('hip_agent.log')
+        fh.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
+
     def load_data_and_embeddings(self):
         """
         Loads textbook.txt and generates embeddings for efficient retrieval.
         """
+        try:
+            # Load textbook.txt.
+            loader = TextLoader(self.textbook_path, encoding = 'UTF-8')
+            self.textbook = loader.load()
 
-        # Load textbook.txt.
-        loader = TextLoader(self.textbook_path, encoding = 'UTF-8')
-        self.textbook = loader.load()
+            # Chunk textbook.txt.
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50, separators=[" ", ",", "\n"])
+            chunks = text_splitter.split_text(str(self.textbook))
+            chunks = text_splitter.create_documents(chunks)
 
-        # Chunk textbook.txt.
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50, separators=[" ", ",", "\n"])
-        chunks = text_splitter.split_text(str(self.textbook))
-        chunks = text_splitter.create_documents(chunks)
+            # Generate and save embeddings.
+            client = weaviate.Client(
+                embedded_options = EmbeddedOptions()
+            )
+            vectorstore = Weaviate.from_documents(
+                client = client,    
+                documents = chunks,
+                embedding = OpenAIEmbeddings(),
+                by_text = False
+            )
+            self.embeddings = vectorstore
 
-        # Generate and save embeddings.
-        client = weaviate.Client(
-            embedded_options = EmbeddedOptions()
-        )
-        vectorstore = Weaviate.from_documents(
-            client = client,    
-            documents = chunks,
-            embedding = OpenAIEmbeddings(),
-            by_text = False
-        )
-        self.embeddings = vectorstore
-
-        # Define retriever.
-        self.retriever = vectorstore.as_retriever()
+            # Define retriever.
+            self.retriever = vectorstore.as_retriever()
+            self.logger.info("Data and embeddings loaded successfully.")
+        except Exception as e:
+            self.logger.error(f"Error occurred while loading data and embeddings: {e}")
 
     def get_response(self, question, answer_choices):
         """
@@ -65,50 +82,44 @@ class HIPAgent:
             The index of the answer choice that matches the response, or -1 if the response
             does not match any answer choice.
         """
+        try:
+            # Load embeddings if not populated.
+            if not self.embeddings:
+                self.load_data_and_embeddings()
+            if not self.retriever:
+                raise ValueError("Retriever component not initialized.")
 
-        # Load embeddings if not populated.
-        if not self.embeddings:
-            self.load_data_and_embeddings()
-        if not self.retriever:
-            raise ValueError("Retriever component not initialized.")
+            # Prepare prompt template.
+            template = """Use the following pieces of retrieved context to answer the multiple-choice question.
+            Question: {question} 
+            Context: {context} 
+            Answer:
+            """
+            prompt = ChatPromptTemplate.from_template(template)
 
-        # Prepare prompt template.
-        template = """Use the following pieces of retrieved context to answer the question.
-        Question: {question} 
-        Context: {context} 
-        Answer:
-        """
-        prompt = ChatPromptTemplate.from_template(template)
+            # Define RAG chain.
+            llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+            rag_chain = (
+                {"context": self.retriever, "question": RunnablePassthrough()}
+                | prompt 
+                | llm
+                | StrOutputParser() 
+            )
 
-        # Define RAG chain
-        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-        rag_chain = (
-            {"context": self.retriever, "question": RunnablePassthrough()}
-            | prompt 
-            | llm
-            | StrOutputParser() 
-        )
+            # Invoke RAG chain.
+            answer_str = "\n".join(answer_choices)
+            full_query = f"{question}\n{answer_str}"
+            answer = rag_chain.invoke(full_query).lower()
 
-        # Invoke RAG chain
-        answer = rag_chain.invoke(question)
+            # Match the response to one of the answer choices.
+            for i, answer_choice in enumerate(answer_choices):
+                if answer_choice.lower() in answer:
+                    return i
 
-        # Correlate RAG answer to answer choices.
-        answer_str = "\n".join(answer_choices)
-        prompt = f"Generated response: {answer} \n\n Which of the following multiple choice answers is the closest to the generated response? Respond with the answer string verbatim. \n\n {answer_str}"
-
-        # Call the OpenAI 3.5 API.
-        response = self.client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-        )
-        response_text = response.choices[0].message.content.lower()
-
-        # Match the response to one of the answer choices.
-        for i, answer_choice in enumerate(answer_choices):
-            if answer_choice.lower() in response_text:
-                return i
-
-        # If the response does not match any answer choice, return -1.
-        return -1
+            # If the response does not match any answer choice, return -1.
+            self.logger.debug(f"No matching answer found for the question: {question}")
+            return -1
+        except Exception as e:
+            self.logger.error(f"Error occurred while getting response: {e}")
+            return -1
+    
