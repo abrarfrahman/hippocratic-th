@@ -89,11 +89,19 @@ class HIPAgent:
             if not self.retriever:
                 raise ValueError("Retriever component not initialized.")
 
-            # Prepare prompt template.
-            template = """Use the following pieces of retrieved context to answer the multiple-choice question.
+            # Prepare one-shot prompt template.
+            template = """
+            Question: Genomics can be used in agriculture to:	
+            generate new hybrid strains	
+            improve disease resistance	
+            improve yield	
+            all of the above
+            Answer: all of the above
+
+            Use the following pieces of retrieved context to answer the multiple-choice question.
             Question: {question} 
             Context: {context} 
-            Answer:
+            Answer: 
             """
             prompt = ChatPromptTemplate.from_template(template)
 
@@ -118,6 +126,7 @@ class HIPAgent:
 
             # If the response does not match any answer choice, return -1.
             self.logger.debug(f"No matching answer found for the question: {question}")
+            print(answer)
             return -1
         except Exception as e:
             self.logger.error(f"Error occurred while getting response: {e}")

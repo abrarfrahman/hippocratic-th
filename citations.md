@@ -11,11 +11,15 @@ v01: Implement RAG for textbook.txt
 
 v02: More complex matching
 **Testbench: 16/20**
-> The closest multiple choice answer to the generated response would be "could help make informed choices about medical treatment".
-- This fails because OpenAI added extra text to the response.
+> The closest multiple choice answer to the generated response would be "could help make informed choices about medical treatment"
+- This fails because OpenAI added extra text to the response
 - Also failing due to capitalization
 
 v03: Add error handling and logging
 **Testbench: 16/20**
 - Copied hip_agent.py into GPT and typed "Can you add logging and error handling"
- 
+- Bot added try-catch and logging imports
+
+v04: One-shot prompt enhancement
+**Testbench: 17/20**
+- Noticed we were struggling with "all of the above" type answers, it would just return the first correct option.
