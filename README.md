@@ -1,3 +1,5 @@
+> See my modifications step-by-step in citations.md
+
 # Hippocratic AI Coding Assignment
 Welcome to the [Hippocratic AI](https://www.hippocraticai.com) coding assignment
 
