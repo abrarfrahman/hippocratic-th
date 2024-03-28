@@ -31,3 +31,5 @@
 - I have made significant progress in working towards a front-end for this. I have paths for uploading other testbenches and even testing a single questions.
 - This is a straightforward Flask application.
 - Right now, this is still a work in progress. Given more time, I would have fixed the API calls (right now the server is returning an error message instead of valid JSON) and spun up a demo page on Vercel, but I'm pushing the 4 hour recommended limit and want to show an accurate reflection of what I can do in that timespan.
+
+<img width="527" alt="Screenshot 2024-03-28 at 11 30 22 AM" src="https://github.com/abrarfrahman/hippocratic-th/assets/28537119/860f0bd4-ae5a-4297-8090-f0ddf5da8c4a">
