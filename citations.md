@@ -1,6 +1,6 @@
-## Changelog
+# Changelog
 
-# Initial Commit
+## Initial Commit
 **Testbench: 9/20**
 
 ## v01: Implement RAG for textbook.txt
