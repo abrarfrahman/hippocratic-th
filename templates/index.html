@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}" id="fileInput"></script>
+    <title>HIPAgent Testing</title>
+</head>
+<body>
+    <h1>HIPAgent Testing</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" id="fileInput">
+        <button type="submit">Upload CSV</button>
+    </form>
+
+    <hr>
+
+    <h2>Or Test a Single Question</h2>
+    <input type="text" id="questionInput" placeholder="Enter question">
+    <input type="text" id="answerInput" placeholder="Enter answer choices (comma-separated)">
+    <input type="text" id="correctAnswerInput" placeholder="Enter correct answer index (zero-indexed)">
+    <button onclick="submitSingleQuestion()">Submit</button>
+    <p id="instruction">Please enter answer choices separated by commas.</p>
+
+    <div id="result"></div>
+</body>
+</html>
